@@ -195,7 +195,7 @@
 				 */
 				product = [];
 
-			console.log('Processing page for product feed data');
+			console.log('Processing URL - ' + window.location.href);
 
 			// If there are products to process
 			if (productExists) {
@@ -283,7 +283,7 @@
 				
 				console.log('Found - ' + name + ' ($' + price + ')');
 			} else {
-				console.log('No product found - ' + window.location.href);
+				console.log('No product found!');
 			}
 			
 			return product;
@@ -329,7 +329,7 @@
 		// Listener for console messages
 		.on('remote.message', function (msg) {
 			if (msg && -1 === msg.indexOf('[obj') && -1 === msg.indexOf('displayed insecure content from'))
-				casper.echo(msg, (-1 !== msg.indexOf('Done') || 0 === msg.indexOf('Found')) ? 'INFO' : (0 === msg.indexOf('No Product Found')) ? 'ERROR' : '');
+				casper.echo(msg, (-1 !== msg.indexOf('Done') || -1 !== msg.indexOf('Found -')) ? 'INFO' : (-1 !== msg.indexOf('No product found')) ? 'ERROR' : '');
 		})
 
 		// Load failed
