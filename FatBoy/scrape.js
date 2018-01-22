@@ -193,7 +193,7 @@
 				 * 
 				 * @type Array
 				 */
-				feedData = [];
+				product = [];
 
 			console.log('Processing page for product feed data');
 
@@ -254,7 +254,7 @@
 				});
 				
 				// Compile the product data
-				feedData.push({
+				product.push({
 					'post_title': name,
 					'post_name': name.toLowerCase().replace(/\W+s\'/g, "").replace(/ /g, '-'),
 					'post_status': 'publish',
@@ -286,8 +286,7 @@
 				console.log('No product found - ' + window.location.href);
 			}
 			
-			console.log('returning ' + feedData.length);
-			return feedData;
+			return product;
 		},
 		
 		/**
@@ -330,7 +329,7 @@
 		// Listener for console messages
 		.on('remote.message', function (msg) {
 			if (msg && -1 === msg.indexOf('[obj') && -1 === msg.indexOf('displayed insecure content from'))
-				casper.echo(msg, (-1 !== msg.indexOf('Done') || -1 !== msg.indexOf('New F')) ? 'INFO' : (-1 !== msg.indexOf('Ignored')) ? 'ERROR' : '');
+				casper.echo(msg, (-1 !== msg.indexOf('Done') || 0 === msg.indexOf('Found')) ? 'INFO' : (0 === msg.indexOf('No Product Found')) ? 'ERROR' : '');
 		})
 
 		// Load failed
