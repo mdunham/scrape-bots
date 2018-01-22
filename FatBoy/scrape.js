@@ -95,7 +95,7 @@
 				 * @param String selector
 				 * @param String attr
 				 * @returns String
-				 */
+				 */ 
 				_getAttr = function(element, selector, attr) {
 					var ele = element.querySelector(':scope ' + selector);
 
@@ -123,10 +123,10 @@
 				 * post_title	post_name	post_status	sku	downloadable	virtual	visibility	stock	stock_status	backorders	manage_stock	regular_price	sale_price	tax_status	tax:product_type	tax:product_cat
 				 * @type Object
 				 */
-				_selectorMap = {
-					'post_title': '#productName',
+				_dataMap = {
+					'post_title': '',
 					'post_name': '',
-					'post_status': '',
+					'post_status': 'publish',
 					'sku': '',
 					'downloadable': 'no',
 					'virtual': 'no',
@@ -199,83 +199,84 @@
 
 			// If there are products to process
 			if (productExists) {
-
-				var 
 				
-					name = _textVal(document, _selectorMap['_selectorMap']),
-
-					// Extract basic product data which is used when no variants are found
-					productData = {
-						'post_title': name,
-						'post_name': name.replace(' ', '-').toLowerCase(),
-						'post_status': 'publish',
-						'sku': '',
-						'downloadable': 'no',
-						'virtual': 'no',
-						'visibility': 'visible',
-						'stock': '',
-						'stock_status': '',
-						'backorders': '',
-						'manage_stock': '',
-						'regular_price': '',
-						'sale_price': '',
-						'weight': '',
-						'length': '',
-						'width': '',
-						'height': '',
-						'tax_status': '',
-						'tax_class': '',
-						'tax:product_type': '',
-						'tax:product_cat': '',
-						'tax:product_brand': ''
-//						'hasVariants': !!variants.length,
-//						'id': _getAttr(element, _selectorMap['product_id'], 'value') + '-',
-//						'sku': _textVal(element, _selectorMap['product_sku']),
-//						'title': _textVal(element, _selectorMap['product_title']),
-//						'description': _textVal(element, _selectorMap['product_title']),
-//						'image_link': _getAttr(element, _selectorMap['image_link'], 'src'),
-//						'product_type': _getAttr(document, _selectorMap['product_type'], 'href'),
-//						'brand': 'Tulsa Chain',
-//						'price': _textVal(element, _selectorMap['product_price']),
-//						'mpn': _textVal(element, _selectorMap['product_sku']),
-//						'shipping_weight': _textVal(element, _selectorMap['product_weight']),
-//						'item_group_id': _textVal(document, _selectorMap['product_type']),
-//						'url': _getUrl(element),
-//						'google_product_category': 'Hardware > Hardware Accessories > Chains',
-//						'adwords_grouping': 'Tulsa Chain - KSP',
-//						'availability': 'in stock',
-//						'condition': 'new'
-					},
-
-					// Map variant data to the datasource Node scoped to the variant row
-					variantMap = _selectorMap['variant_map'],
-					variantHeaders = _subQuery(element, _selectorMap['variants'] + ':nth-child(1) > th');
-
-				// Make sure the image link is a full url
-				if (productData['image_link']) {
-					productData['image_link'] = parseURL(productData['image_link']);
-					productData['image_link'] = productData['image_link'].protocol + 
-						'//' + productData['image_link'].hostname + productData['image_link'].pathname;
+				var 
+					
+					// Product Name
+					name = _textVal(document, '#productName'),
+						
+					// Full size product image
+					image = _getAttr(document, '#productMainImage img', 'src'),
+					
+					// Product price
+					price = (_textVal(document, '#productPrices') || 'error').replace('$', ''),
+					
+					// Description if present
+					description = _textVal(document, '#productDescription') || '',
+						
+					// List of extra data like model and stock level
+					metaUl = _query('ul#productDetailsList li'),
+					
+					// The current breadcrum reading
+					category = _textVal(document, '#navBreadCrumb'),
+					
+					// Default for stock level
+					stockLvl = '',
+						
+					// Default for model
+					model = '';
+				
+				
+				// Correct image path
+				if (image) {
+					image = 'https://fatboytactical.net/' + image;
+				}
+			
+				// Check if the categroy is readable
+				if (-1 !== category.indexOf('::')) {
+					category = category.split('::');
+					category.shift();
+					category = category.map(function(txt){ return txt.trim(); });
+					category = category.join('>');
+				} else {
+					category = 'Unknown';
 				}
 
-				// Prep the rows of data to be added to the feed
-				var dataRow = [{
-					'id': productData['id'] + productData['sku'],
-					'title': productData['brand'] + ' ' + productData['title'] + ' ' + productData['mpn'],
-					'description': productData['title'] + ' ' + productData['brand'] + ' ' + productData['sku'],
-					'product_type': productData['product_type'],
-					'url': productData['url'],
-					'image_link': productData['image_link'],
-					'condition': productData['condition'],
-					'availability': productData['availability'],
-					'price': productData['price'],
-					'brand': productData['brand'],
-					'mpn': productData['mpn'],
-					'adwords_grouping': productData['adwords_grouping'],
-					'shipping_weight': productData['shipping_weight'],
-					'item_group_id': productData['item_group_id'],
-					'google_product_category': productData['google_product_category']
-				}];			
+				// Process the meta data like model and stock
+				_forEach(metaUl, function(li){
+					var txt = li.innerText;
+					if (-1 !== txt.indexOf('Units in Stock')) {
+						stockLvl = txt.replace(' Units in Stock', '').trim();
+					} else if (0 === txt.indexOf('Model: ')) {
+						model = txt.replace('Model: ', '').trim();
+					}
+				});
+				
+				// Compile the product data
+				return {
+					'post_title': name,
+					'post_name': name.toLowerCase().replace(/\W+s\'/g, "").replace(/ /g, '-'),
+					'post_status': 'publish',
+					'sku': '',
+					'downloadable': 'no',
+					'virtual': 'no',
+					'visibility': 'visible',
+					'stock': stockLvl,
+					'stock_status': 'instock',
+					'backorders': 'no',
+					'manage_stock': stockLvl ? 'yes' : 'no',
+					'regular_price': price,
+					'sale_price': '',
+					'weight': '',
+					'length': '',
+					'width': '',
+					'height': '',
+					'tax_status': 'taxable',
+					'tax_class': '',
+					'tax:product_type': 'simple',
+					'tax:product_cat': category,
+					'tax:product_brand': model
+				};
 
 			} else {
 				console.log('No product found');
