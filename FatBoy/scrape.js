@@ -298,7 +298,7 @@
 			casper.echo(crawlUrls.length + ' urls total to crawl');
 			while (crawlUrls.length) {
 				casper.thenOpen(crawlUrls.pop(), function() {
-					casper.wait(5000, function() {
+					casper.wait(1500, function() {
 						reportErrors(function() {
 							feedData = feedData.concat(casper.evaluate(evaluateProduct));
 						});
