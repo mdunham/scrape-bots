@@ -253,7 +253,7 @@
 				});
 				
 				// Compile the product data
-				return {
+				feedData.push({
 					'post_title': name,
 					'post_name': name.toLowerCase().replace(/\W+s\'/g, "").replace(/ /g, '-'),
 					'post_status': 'publish',
@@ -276,14 +276,14 @@
 					'tax:product_type': 'simple',
 					'tax:product_cat': category,
 					'tax:product_brand': model
-				};
-
+				});
+				
+				console.log('Found - ' + name + ' ($' + price + ')');
 			} else {
-				console.log('No product found');
+				console.log('No product found - ' + window.location.href);
 			}
 			
-			console.log('Done with page found ');
-
+			console.log('returning ' + feedData.length);
 			return feedData;
 		},
 		
