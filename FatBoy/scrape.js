@@ -236,6 +236,7 @@
 				if (-1 !== category.indexOf('::')) {
 					category = category.split('::');
 					category.shift();
+					category.pop();
 					category = category.map(function(txt){ return txt.trim(); });
 					category = category.join('>');
 				} else {
@@ -258,6 +259,8 @@
 					'post_name': name.toLowerCase().replace(/\W+s\'/g, "").replace(/ /g, '-'),
 					'post_status': 'publish',
 					'sku': '',
+					'post_content': description,
+					'images': image,
 					'downloadable': 'no',
 					'virtual': 'no',
 					'visibility': 'visible',
