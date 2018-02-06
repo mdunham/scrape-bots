@@ -269,7 +269,7 @@
 						// Extract basic product data which is used when no variants are found
 						productData = {
 							'hasVariants': !!variants.length,
-							'category': breadcrumbs,join(' > '),
+							'category': breadcrumbs.join(' > '),
 							'id': _getAttr(element, _selectorMap['product_id'], 'value'),
 							'sku': _textVal(element, _selectorMap['product_sku']),
 							'title': _textVal(element, _selectorMap['product_title']),
