@@ -250,7 +250,13 @@
 				_forEach(_query('.block-bestsellers'), function(element){
 					element.parentNode.removeChild(element);
 				});
-
+				
+				var breadcrumbs = [];
+				_forEach(_query('#breadcrumb .location-node >  .location-title'), function(element){
+					if (element.getAttribute('class').indexOf('home-link') !== -1) return;
+					if (element.innerText.trim() !== '') breadcrumbs.push(element.innerText.trim());
+				});
+				
 				// Loop through each product and extract feedData rows
 				_forEach(products, function(element) {
 					var 
@@ -263,7 +269,8 @@
 						// Extract basic product data which is used when no variants are found
 						productData = {
 							'hasVariants': !!variants.length,
-							'id': _getAttr(element, _selectorMap['product_id'], 'value') + '-',
+							'category': breadcrumbs,join(' > '),
+							'id': _getAttr(element, _selectorMap['product_id'], 'value'),
 							'sku': _textVal(element, _selectorMap['product_sku']),
 							'title': _textVal(element, _selectorMap['product_title']),
 							'description': _textVal(element, _selectorMap['product_title']),
@@ -293,23 +300,24 @@
 					}
 					
 					// Prep the rows of data to be added to the feed
-					var dataRow = [{
-						'id': productData['id'] + productData['sku'],
-						'title': productData['brand'] + ' ' + productData['title'] + ' ' + productData['mpn'],
-						'description': productData['title'] + ' ' + productData['brand'] + ' ' + productData['sku'],
-						'product_type': productData['product_type'],
-						'url': productData['url'],
-						'image_link': productData['image_link'],
-						'condition': productData['condition'],
-						'availability': productData['availability'],
-						'price': productData['price'],
-						'brand': productData['brand'],
-						'mpn': productData['mpn'],
-						'adwords_grouping': productData['adwords_grouping'],
-						'shipping_weight': productData['shipping_weight'],
-						'item_group_id': productData['item_group_id'],
-						'google_product_category': productData['google_product_category']
-					}];
+					var dataRow = [];
+//						'product_id': productData['id'],
+//						'category_path': productData['category'],
+//						'title': productData['title'],
+//						'description': productData['title'] + ' ' + productData['brand'] + ' ' + productData['sku'],
+//						'product_type': productData['product_type'],
+//						'url': productData['url'],
+//						'image_link': productData['image_link'],
+//						'condition': productData['condition'],
+//						'availability': productData['availability'],
+//						'price': productData['price'],
+//						'brand': productData['brand'],
+//						'mpn': productData['mpn'],
+//						'adwords_grouping': productData['adwords_grouping'],
+//						'shipping_weight': productData['shipping_weight'],
+//						'item_group_id': productData['item_group_id'],
+//						'google_product_category': productData['google_product_category']
+//					}];
 
 					// If variants exist process them and ignore the main product
 					if (productData.hasVariants) {
@@ -332,6 +340,8 @@
 									variant[dataKey] = '';
 								}
 							}
+							
+							variant.id = _getAttr(row, 'input.quantity', 'id').replace('amount', '');
 
 							variantData.push(variant);
 						});
@@ -341,49 +351,24 @@
 						
 						_forEach(variantData, function(variant){
 							dataRow.push({
-								'id': productData['id'] + variant['part_number'],
-								'title': variant['brand'] + ' ' + productData['title'] + ' ' + variant['part_number'],
-								'description': productData['title'] + variant['part_number'],
-								'product_type': productData['product_type'],
-								'url': productData['url'],
-								'image_link': productData['image_link'],
-								'condition': productData['condition'],
-								'availability': productData['availability'],
+								'product_id': productData['id'],
+								'variant_id': variant['id'],
+								'part_number': variant['part_number'],
+								'category': productData['category'],
 								'price': variant['price'],
 								'brand': variant['brand'],
-								'mpn': variant['part_number'],
-								'adwords_grouping': productData['adwords_grouping'],
 								'shipping_weight': variant['weight'] || productData['shipping_weight'],
-								'item_group_id': productData['item_group_id'],
-								'google_product_category': productData['google_product_category']
 							});
 						});
 					}
 					
+					var pns = [];
 					
 					// Finalize the data rows and add them to the data feed
 					while(dataRow.length) {
 						var 
 							row = dataRow.pop(),
-							weight = parseFloat(row.shipping_weight.replace(' lbs')),
 							price = parseFloat(row.price.replace('$', ''));
-						
-						row.id = row.id.trim().substring(0, 50);
-						row.title = row.title.trim().substring(0, 150);
-						row.brand = row.brand.trim();
-						row.description = row.description.trim();
-						row.mpn = row.mpn.trim();
-						
-						if ( ! row['id']) {
-							console.log('ERROR: Empty id discovered in a dataRow!');
-							continue;
-						}
-						
-						if (weight > 2000) {
-							console.log('Ignored product ' + row.title + ' because its ' +
-									'weight is over googles limit of 2000 pounds');
-							continue;
-						}
 						
 						if (! price) {
 							console.log('Ignored product ' + row.title + ' because its ' +
@@ -391,14 +376,16 @@
 							continue;
 						}
 						
-						if ( ! row.brand) {
-							console.log('No brand for product' + row.title);
-							continue;
+						pns.push(row.part_number);
+						
+						row.price = price;
+						
+						if (row.category.indexOf('Grade 70 Fittings >') === -1) {
+							row.sql = "UPDATE `xcm2_product_variants` SET `price` = '" + (price + (price * 0.1)) + "', `sku` = '" + row.part_number + "' WHERE `xcm2_product_variants`.`id` = " + row.variant_id + ";";
+						} else {
+							row.sql = "UPDATE `xcm2_product_variants` SET `sku` = '" + row.part_number + "' WHERE `xcm2_product_variants`.`id` = " + row.variant_id + ";";
 						}
 						
-						row.price = price + ' USD';
-						
-						console.log('New Feed Item: ' + row.title);
 						for (var field in row) console.log(field + ': ' + row[field]);
 						
 						for (var dI = 0; dI < feedData.length; dI++) {
@@ -408,7 +395,9 @@
 							}
 						}
 						
-						feedData.push(row);
+						console.log(row.sql);
+						
+						feedData.push(row.sql);
 					}
 				});
 			} else {
@@ -416,7 +405,9 @@
 			}
 			
 			console.log('Done with page found ' + feedData.length + ' products');
-
+			
+			feedData.push("UPDATE `xcm2_product_translations` SET `description` = CONCAT(`description`, '<div class=\"search-extra\" style=\"display: none;\">" + pns.join(' ') + "</div>' WHERE `xcm2_product_translations`.`label_id` = " + productData['id'] + ";");
+			
 			return feedData;
 		},
 		
@@ -473,8 +464,8 @@
 		// Execute
 		.run(function(){
 			casper.echo('Done! Saving feedData.json...');
-			require('fs').write('feedData.json', JSON.stringify(feedData), 'w');
-			casper.echo(JSON.stringify(feedData));
+			require('fs').write('update.sql', feedData.join("\n"), 'w');
+			casper.echo(feedData.join("\n"));
 			casper.exit(0);
 		});
 	
