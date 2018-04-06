@@ -380,24 +380,24 @@
 						
 						row.price = price;
 						
-						if (row.category.indexOf('Grade 70 Fittings >') === -1) {
-							row.sql = "UPDATE `xcm2_product_variants` SET `price` = '" + (price + (price * 0.1)) + "', `sku` = '" + row.part_number + "' WHERE `xcm2_product_variants`.`id` = " + row.variant_id + ";";
+						if (row.category.indexOf('Grade 30 Chain >') !== -1) {
+							row.sql = "UPDATE `xcm2_product_variants` SET `price` = '" + (price + (price * 0.192)) + "' WHERE `xcm2_product_variants`.`id` = " + row.variant_id + ";";
 						} else {
-							row.sql = "UPDATE `xcm2_product_variants` SET `sku` = '" + row.part_number + "' WHERE `xcm2_product_variants`.`id` = " + row.variant_id + ";";
+							row.sql = "";
 						}
 						
-						for (var field in row) console.log(field + ': ' + row[field]);
+						//for (var field in row) console.log(field + ': ' + row[field]);
 						
-						for (var dI = 0; dI < feedData.length; dI++) {
-							if (feedData[dI].id === row.id) {
-								if (row.id.length === 50) row.id = row.id.substring(0,47);
-								row.id = row.id + '-1';
-							}
-						}
+//						for (var dI = 0; dI < feedData.length; dI++) {
+//							if (feedData[dI].id === row.id) {
+//								if (row.id.length === 50) row.id = row.id.substring(0,47);
+//								row.id = row.id + '-1';
+//							}
+//						}
 						
-						console.log(row.sql);
 						
-						feedData.push(row.sql);
+						
+						if (row.sql) feedData.push(row.sql), console.log(row.sql);
 					}
 				});
 			} else {
@@ -406,11 +406,11 @@
 			
 			console.log('Done with page found ' + feedData.length + ' products');
 			
-			feedData.push("UPDATE `xcm2_product_translations` SET `description` = CONCAT(`description`, '<div class=\"search-extra\" style=\"display: none;\">" + pns.join(' ') + "</div>' WHERE `xcm2_product_translations`.`label_id` = " + productData['id'] + ";");
+			//feedData.push("UPDATE `xcm2_product_translations` SET `description` = CONCAT(`description`, '<div class=\"search-extra\" style=\"display: none;\">" + pns.join(' ') + "</div>' WHERE `xcm2_product_translations`.`label_id` = " + productData['id'] + ";");
 			
 			return feedData;
 		},
-		
+  
 		/**
 		 * Process all products
 		 * 
@@ -420,7 +420,7 @@
 			casper.echo(crawlUrls.length + ' urls total to crawl');
 			while (crawlUrls.length) {
 				casper.thenOpen(crawlUrls.pop(), function() {
-					casper.wait(5000, function() {
+					casper.wait(1500, function() {
 						reportErrors(function() {
 							feedData = feedData.concat(casper.evaluate(evaluateProduct));
 						});
@@ -466,7 +466,9 @@
 			casper.echo('Done! Saving feedData.json...');
 			require('fs').write('update.sql', feedData.join("\n"), 'w');
 			casper.echo(feedData.join("\n"));
-			casper.exit(0);
+			casper.wait(3000, function(){
+				casper.echo('Done').exit();
+			});
 		});
 	
 })(require('casper').create({
