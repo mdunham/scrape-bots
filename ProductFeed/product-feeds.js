@@ -1,11 +1,11 @@
 /**
- * Product Scrape
+ * Product Feed Generator for TulsaChain.com
  * 
  * This will process the HTML of a product page, and extract data required for 
  * generating the Google shopping product feed.
  * 
  * @author Matthew Dunham <matt@hotcoffeydesign.com>
- * @copyright All rights reserved by Hot Coffey Design
+ * @copyright All rights reserved by Hot Coffey Design - Dec. 20th, 2017
  */
 
 /**
@@ -35,7 +35,6 @@
 		 * @returns Array
 		 */
 		evaluateProduct = function() {
-			
 			var
 
 				/**
@@ -95,7 +94,7 @@
 				 * @param String selector
 				 * @param String attr
 				 * @returns String
-				 */ 
+				 */
 				_getAttr = function(element, selector, attr) {
 					var ele = element.querySelector(':scope ' + selector);
 
@@ -120,34 +119,88 @@
 
 				/**
 				 * Map product data attributes to the datasource Node's selector
-				 * post_title	post_name	post_status	sku	downloadable	virtual	visibility	stock	stock_status	backorders	manage_stock	regular_price	sale_price	tax_status	tax:product_type	tax:product_cat
+				 * 
 				 * @type Object
 				 */
-				_dataMap = {
-					'post_title': '',
-					'post_name': '',
-					'post_status': 'publish',
-					'sku': '',
-					'downloadable': 'no',
-					'virtual': 'no',
-					'visibility': 'visible',
-					'stock': '',
-					'stock_status': '',
-					'backorders': '',
-					'manage_stock': '',
-					'regular_price': '',
-					'sale_price': '',
-					'weight': '',
-					'length': '',
-					'width': '',
-					'height': '',
-					'tax_status': '',
-					'tax_class': '',
-					'tax:product_type': '',
-					'tax:product_cat': '',
-					'tax:product_brand': ''
+				_selectorMap = {
+					'products': 'form[action="?target=cart"]',
+					'variants': 'table.variants-table tr',
+					'product_title': 'h1.title',
+					'product_type': '#breadcrumb > ul > li:nth-child(2) > a',
+					'image_link': 'div.product-photo img.product-thumbnail',
+					'product_price': 'div.product-details-tabs div.price-block ul li span.price',
+					'product_sku': '#product-details-tab-description > ul > li.product-sku > span',
+					'product_url': 'input[name="returnURL"]',
+					'product_id': 'input[name="product_id"]',
+					'product_weight': '#product-details-tab-description > ul > li.product-weight > span',
+					'variant_map': {
+						'part_number': 'td:nth-child(1)',
+						'description': 'td:nth-child(2)',
+						'brand': 'td:nth-child(3)',
+						'weight': 'td:nth-child(4)',
+						'price': 'td:nth-child(5)'
+					}
 				},
 
+				/**
+				 * List of products on this page to process
+				 * 
+				 * @type NodeList
+				 */
+				products = _query(_selectorMap['products']),
+
+				/**
+				 * Lets us know if the variants have been properly mapped for this page
+				 * 
+				 * @type Object
+				 */
+				mapped = {
+					'part_number': false,
+					'description': false,
+					'brand': false,
+					'weight': false,
+					'price': false
+				},
+
+				/**
+				 * Attempts to build a map to variant data based on the variant header col data
+				 * 
+				 * @param NodeList variantHeaders
+				 * @returns Object Containing the same keys as _selectorMap.variant_map
+				 */
+				_mapVariants = function(variantHeaders) {
+					var 
+						dblDesc = false,
+						variantMap = _selectorMap['variant_map'];
+					
+					_forEach(variantHeaders, function(element, index){
+						var text = ((element.innerText).trim()).toLowerCase();
+						if (-1 !== ['part #', 'name'].indexOf(text) || -1 !== text.indexOf('part n')) {
+							mapped.part_number = true;
+							variantMap['part_number'] = '> td:nth-child(' + (index + 1) + ')';
+						} else if ('weight' === text) {
+							mapped.weight = true;
+							variantMap['weight'] = '> td:nth-child(' + (index + 1) + ')';
+						} else if ('brand' === text) {
+							mapped.brand = true;
+							variantMap['brand'] = '> td:nth-child(' + (index + 1) + ')';
+						} else if ('price' === text) {
+							mapped.price = true;
+							variantMap['price'] = '> td:nth-child(' + (index + 1) + ')';
+						} else if ('description' === text) {
+							if (dblDesc) {
+								mapped.part_number = true;
+								variantMap['part_number'] = variantMap['description'];
+							}
+							dblDesc = true;
+							mapped.description = true;
+							variantMap['description'] = '> td:nth-child(' + (index + 1) + ')';
+						}
+					});
+					
+					return variantMap;
+				},
+				
 				/**
 				 * Helper function for parsing urls into parts
 				 * 
@@ -182,116 +235,248 @@
 				},
 				
 				/**
-				 * Checks to see if the current page has a product
-				 * 
-				 * @type bool
-				 */
-				productExists = !_query('#productInfoNoProductMainContent').length,
-				
-				/**
 				 * Contains extracted feed data for the current page
 				 * 
 				 * @type Array
 				 */
-				product = [];
+				feedData = [];
 
-			console.log('Processing URL - ' + window.location.href);
+			console.log('Processing page for product feed data');
 
 			// If there are products to process
-			 [].map.call(document.querySelectorAll('List Product'), function(element) {
-		 		var url_string = window.location.href;
-				var url = new URL(url_string);
-				var cat = url.searchParams.get("CategoryInteropID");	
-				
-				var 
-					
-					// Product Name
-					name = _textVal(element, 'Name'),
-						
-					// Full size product image
-					image = _textVal(element, 'LargeImageUrl'),
-					
-					// Product price
-					price = (_textVal(element, 'Price') || 'error').replace('$', ''),
-					
-					// Description if present
-					description = _textVal(element, 'Description') || '',
-						
-					// List of extra data like model and stock level
-					metaUl = null, //_query('ul#productDetailsList li'),
-					
-					// The current breadcrum reading
-					category = cat,
-					
-					// Default for stock level
-					stockLvl = '',
+			if (products.length) {
 
-					// Shipping weight
-					shipWeight = _textVal(element, 'ShipWeight') || '',
-
-					//sku
-					sku = _textVal(element, 'ExternalID') || '',
-						
-					// Default for model
-					model = '';
-
-			
-					var url_string = window.location.href;
-					var url = new URL(url_string);
-					var cat = url.searchParams.get("CategoryInteropID");
-					
-				
-				// Compile the product data
-				product.push({
-					'post_title': name,
-					'post_name': name.toLowerCase().replace(/\W+s\'/g, "").replace(/ /g, '-'),
-					'post_status': 'publish',
-					'sku': sku,
-					'post_content': description,
-					'images': image,
-					'downloadable': 'no',
-					'virtual': 'no',
-					'visibility': 'visible',
-					'stock': stockLvl,
-					'stock_status': 'instock',
-					'backorders': 'no',
-					'manage_stock': stockLvl ? 'yes' : 'no',
-					'regular_price': price,
-					'sale_price': '',
-					'weight': shipWeight,
-					'length': '',
-					'width': '',
-					'height': '',
-					'tax_status': 'taxable',
-					'tax_class': '',
-					'tax:product_type': 'simple',
-					'tax:product_cat': category,
-					'tax:product_brand': model
+				// Remove best sellers or they will interfere with Variant Mapping
+				_forEach(_query('.block-bestsellers'), function(element){
+					element.parentNode.removeChild(element);
 				});
-				
-				console.log('Found - ' + name + ' ($' + price + ')');
-			});
+
+				// Loop through each product and extract feedData rows
+				_forEach(products, function(element) {
+					var 
+						// @type NodeList Find any variations displayed under this product
+						variants = _subQuery(element, _selectorMap['variants']),
+
+						// @type Array containing parsed data for all variants
+						variantData = [],
+
+						// Extract basic product data which is used when no variants are found
+						productData = {
+							'hasVariants': !!variants.length,
+							'id': _getAttr(element, _selectorMap['product_id'], 'value') + '-',
+							'sku': _textVal(element, _selectorMap['product_sku']),
+							'title': _textVal(element, _selectorMap['product_title']),
+							'description': _textVal(element, _selectorMap['product_title']),
+							'image_link': _getAttr(element, _selectorMap['image_link'], 'src'),
+							'product_type': _getAttr(document, _selectorMap['product_type'], 'href'),
+							'brand': 'Tulsa Chain',
+							'price': _textVal(element, _selectorMap['product_price']),
+							'mpn': _textVal(element, _selectorMap['product_sku']),
+							'shipping_weight': _textVal(element, _selectorMap['product_weight']),
+							'item_group_id': _textVal(document, _selectorMap['product_type']),
+							'url': _getUrl(element),
+							'google_product_category': 'Hardware > Hardware Accessories > Chains',
+							'adwords_grouping': 'Tulsa Chain - KSP',
+							'availability': 'in stock',
+							'condition': 'new'
+						},
+
+						// Map variant data to the datasource Node scoped to the variant row
+						variantMap = _selectorMap['variant_map'],
+						variantHeaders = _subQuery(element, _selectorMap['variants'] + ':nth-child(1) > th');
+
+					// Make sure the image link is a full url
+					if (productData['image_link']) {
+						productData['image_link'] = parseURL(productData['image_link']);
+						productData['image_link'] = productData['image_link'].protocol + 
+							'//' + productData['image_link'].hostname + productData['image_link'].pathname;
+					}
+					
+					// Prep the rows of data to be added to the feed
+					var dataRow = [{
+						'id': productData['id'] + productData['sku'],
+						'title': productData['brand'] + ' ' + productData['title'] + ' ' + productData['mpn'],
+						'description': productData['title'] + ' ' + productData['brand'] + ' ' + productData['sku'],
+						'product_type': productData['product_type'],
+						'url': productData['url'],
+						'image_link': productData['image_link'],
+						'condition': productData['condition'],
+						'availability': productData['availability'],
+						'price': productData['price'],
+						'brand': productData['brand'],
+						'mpn': productData['mpn'],
+						'adwords_grouping': productData['adwords_grouping'],
+						'shipping_weight': productData['shipping_weight'],
+						'item_group_id': productData['item_group_id'],
+						'google_product_category': productData['google_product_category']
+					}];
+
+					// If variants exist process them and ignore the main product
+					if (productData.hasVariants) {
+						if (Object.keys(variantMap).length !== (variantHeaders.length - 1)) {
+							console.log('Variant header vs mapping count doesn\'t match! - (' + 
+							Object.keys(variantMap).length + ' !== ' + (variantHeaders.length - 1));
+						}
+
+						variantMap = _mapVariants(variantHeaders);
+
+						_forEach(variants, function(row, index) {
+							if ( ! index) return;
+
+							var variant = {};
+
+							for (var dataKey in variantMap) {
+								if (mapped[dataKey]) {
+									variant[dataKey] = _textVal(row, variantMap[dataKey]);
+								} else {
+									variant[dataKey] = '';
+								}
+							}
+
+							variantData.push(variant);
+						});
+						
+						// Remove the default data row
+						dataRow = [];
+						
+						_forEach(variantData, function(variant){
+							dataRow.push({
+								'id': productData['id'] + variant['part_number'],
+								'title': variant['brand'] + ' ' + productData['title'] + ' ' + variant['part_number'],
+								'description': productData['title'] + variant['part_number'],
+								'product_type': productData['product_type'],
+								'url': productData['url'],
+								'image_link': productData['image_link'],
+								'condition': productData['condition'],
+								'availability': productData['availability'],
+								'price': variant['price'],
+								'brand': variant['brand'],
+								'mpn': variant['part_number'],
+								'adwords_grouping': productData['adwords_grouping'],
+								'shipping_weight': variant['weight'] || productData['shipping_weight'],
+								'item_group_id': productData['item_group_id'],
+								'google_product_category': productData['google_product_category']
+							});
+						});
+					}
+					
+					
+					// Finalize the data rows and add them to the data feed
+					while(dataRow.length) {
+						var 
+							row = dataRow.pop(),
+							weight = parseFloat(row.shipping_weight.replace(' lbs')),
+							price = parseFloat(row.price.replace('$', ''));
+						
+						row.id = row.id.trim().substring(0, 50);
+						row.title = row.title.trim().substring(0, 150);
+						row.brand = row.brand.trim();
+						row.description = row.description.trim();
+						row.mpn = row.mpn.trim();
+						
+						if ( ! row['id']) {
+							console.log('ERROR: Empty id discovered in a dataRow!');
+							continue;
+						}
+						
+						if (weight > 2000) {
+							console.log('Ignored product ' + row.title + ' because its ' +
+									'weight is over googles limit of 2000 pounds');
+							continue;
+						}
+						
+						if (! price) {
+							console.log('Ignored product ' + row.title + ' because its ' +
+									'price is invalid: ' + typeof price + ' => ' + price);
+							continue;
+						}
+						
+						if ( ! row.brand) {
+							console.log('No brand for product' + row.title);
+							continue;
+						}
+						
+						row.price = price + ' USD';
+						
+						console.log('New Feed Item: ' + row.title);
+						for (var field in row) console.log(field + ': ' + row[field]);
+						var d = 0;
+						for (var dI = 0; dI < feedData.length; dI++) {
+							if (feedData[dI].id === row.id) {
+								if (row.id.length === 50) row.id = row.id.substring(0,47);
+								row.id = row.id + '-d' + d++;
+							}
+						}
+						
+						feedData.push(row);
+					}
+				});
+			} else {
+				console.log('No products found');
+			}
 			
-			
-			return product;
+			console.log('Done with page found ' + feedData.length + ' products');
+
+			return feedData;
 		},
-		
+		chunkify = function(a, n, balanced) {
+    
+		    if (n < 2)
+		        return [a];
+
+		    var len = a.length,
+		            out = [],
+		            i = 0,
+		            size;
+
+		    if (len % n === 0) {
+		        size = Math.floor(len / n);
+		        while (i < len) {
+		            out.push(a.slice(i, i += size));
+		        }
+		    }
+
+		    else if (balanced) {
+		        while (i < len) {
+		            size = Math.ceil((len - i) / n--);
+		            out.push(a.slice(i, i += size));
+		        }
+		    }
+
+		    else {
+
+		        n--;
+		        size = Math.floor(len / n);
+		        if (len % size === 0)
+		            size--;
+		        while (i < size * n) {
+		            out.push(a.slice(i, i += size));
+		        }
+		        out.push(a.slice(size * n));
+
+		    }
+
+		    return out;
+		},
+		thread = casper.cli.get(0),
+		threads = casper.cli.get(1),
 		/**
 		 * Process all products
 		 * 
 		 * @returns void
 		 */
 		crawlStart = function(){
-			casper.echo(crawlUrls.length + ' urls total to crawl');
-			while (crawlUrls.length) {
-				casper.thenOpen(crawlUrls.pop(), function() {
-					casper.wait(1500, function() {
-						reportErrors(function() {
-							casper.echo(casper.get);
-							feedData = feedData.concat(casper.evaluate(function(){reportErrors(function(){ return evaluateProduct() })}));
-						});
-					});
-				});
+			var curUrlIndex = 0, splitLoad = chunkify(crawlUrls, threads), totalUrls = splitLoad[thread].length;
+			casper.echo('Running thread ' + thread + ' of ' + threads + ' ' + totalUrls + ' urls total to crawl');
+			while (splitLoad[thread].length) {
+				 casper.thenOpen(splitLoad[thread].pop(), function() {
+ 					casper.wait(4000, function() {
+						casper.echo('Processing (' + curUrlIndex++ + '/' + totalUrls + '):' + casper.getCurrentUrl());
+ 						reportErrors(function() {
+ 							feedData = feedData.concat(casper.evaluate(evaluateProduct));
+ 						});
+ 					});
+ 				});
 			}
 		},
 		
@@ -317,7 +502,7 @@
 		// Listener for console messages
 		.on('remote.message', function (msg) {
 			if (msg && -1 === msg.indexOf('[obj') && -1 === msg.indexOf('displayed insecure content from'))
-				casper.echo('remote: ' + msg, (-1 !== msg.indexOf('Done') || -1 !== msg.indexOf('Found -')) ? 'INFO' : (-1 !== msg.indexOf('No product found')) ? 'ERROR' : '');
+				casper.echo(msg, (-1 !== msg.indexOf('Done') || -1 !== msg.indexOf('New F')) ? 'INFO' : (-1 !== msg.indexOf('Ignored')) ? 'ERROR' : '');
 		})
 
 		// Load failed
@@ -330,17 +515,16 @@
 		// Execute
 		.run(function(){
 			casper.echo('Done! Saving feedData.json...');
-			require('fs').write('feedData.json', JSON.stringify(feedData), 'w');
+			require('fs').write('feedData' + thread + '.json', JSON.stringify(feedData), 'w');
 			casper.echo(JSON.stringify(feedData));
+			casper.wait(500, function(){});
 			casper.exit(0);
 		});
 	
 })(require('casper').create({
-	verbose: true,
-	logLevel: "debug",
+	verbose: false,
 	pageSettings: {
         loadImages:  false,        // do not load images
         loadPlugins: false         // do not load NPAPI plugins (Flash, Silverlight, ...)
     }
 }));
-

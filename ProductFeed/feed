@@ -1,0 +1,28 @@
+#!/bin/bash
+
+echo "$(date +[%D\ %I:%M:%S]) Shop Feed Generator by Matthew Dunham <matt@hotcoffeydesign.com>"
+
+pidof () { ps -Ac | egrep $@ | awk '{print $1}'; }
+
+renice -n 10 $$
+rm -f log.log 2> /dev/null
+
+for((i=0;i<$1;i+=1)); do 
+	casperjs --ignore-ssl-errors=true ./product-feeds.js $i $1 >> log.log & 
+done
+
+elip="...";
+
+while [ "$(pidof phantomjs | wc -w)" -gt "0" ]; do
+	elip="$elip..."
+	if [ ${#elip} -ge 10 ]; then elip="..." ; fi
+	echo -ne "Waiting for $(pidof phantomjs | wc -w) threads to finish$elip"\\r
+	sleep 1
+done
+
+echo "$(date +[%D\ %I:%M:%S]) All payloads complete"
+
+node ./stitch.js
+json2csv -i ./feed.json -o ./feed.csv
+
+echo "$(date +[%D\ %I:%M:%S]) Feed Ready - feed.csv"
