@@ -1,9 +1,9 @@
 /**
- * TulsaChains Product Scraper
+ * OSHA Test Utility
  * 
- * This file will connect to tulsachain.com and retrieve all product information
+ * This script will save 30 hours of your life
  * 
- * Run this from the command-line: casperjs tc-scraper.js
+ * Run this from the command-line: casperjs main.js
  * 
  * @author Matthew Dunham <matt@hotcoffeydesign.com>
  */
@@ -14,135 +14,139 @@
 (function(casper){
 	
 	var
-	
-		/**
-		 * Array of categories
-		 * 
-		 * @var array
-		 */
-		categories = [],
-		
-		/**
-		 * Array of product data
-		 * 
-		 * @var array
-		 */
-		products = [],
-		
+
 		/**
 		 * Process a page
 		 * 
 		 * @returns void
 		 */
-		process = function(){
-			categories = this.evaluate(function(){
-				var t = [];
-				__utils__.findAll('a.menunav').map(function(a){
-					t.push({href: 'http://tulsachain.com' + a.getAttribute('href'), title: a.innerText, subcats: []});
-				});
+		login = function(){
+			casper.waitForSelector('#LoginControlObject_UsernameTextBox', function(){
+				this.fillSelectors('form', {
+					'#LoginControlObject_UsernameTextBox': 'Bcg5',
+					'#LoginControlObject_PasswordTextBox': 'Shane123'
+				}, true);
 				
-				return t;
+				this.wait(5000, resumeCourse);
 			});
-			for (var i = 0; i < categories.length; i++) {
-				(function(index){
-					casper.thenOpen(categories[index].href, function(){
-						categories[index].subcats = this.evaluate(function(){
-							var p = [];
-							__utils__.findAll('table[bordercolor="white"] td[valign="top"] a').map(function(a){
-								p.push({ href: 'http://tulsachain.com' + a.getAttribute('href'), title: a.innerText});
+		},
+		
+		/**
+		 * Click the resume course button
+		 * 
+		 * @returns void
+		 */
+		resumeCourse = function() {
+			this
+				.withFrame('mainContent', function(){
+					if (this.exists('#ResumeCourse')) {
+						this.evaluate(function(){
+							document.querySelector('#ResumeCourse').click();
+						});
+						this.wait(3000, detectQuiz);
+					} else {
+						this.echo('No resume course?');
+						this.exit();
+					}
+				});
+		},
+		
+		/**
+		 * Detect if we are on a story or a quiz page
+		 * 
+		 * @returns void
+		 */
+		detectQuiz = function() {
+			this.echo('detecting quiz');
+			var reload = false;
+				var time = false;
+				if (this.exists('#TimeRemainingClock')) {
+					time = this.getHTML('#TimeRemainingClock', false);
+				}
+				if (this.exists('#reviewNextLink')) {
+					var link = this.getElementInfo('#reviewNextLink');
+					if ( ! link.visible) {
+						this.withFrame(0, function() {
+							this.withFrame('scormdriver_content', function(){
+								this.evaluate(function(){
+									try {
+										for (var i = 0; i < 350; i++) player.setSlideIndex(i);
+									} catch (e) {}
+								});
 							});
-							return p;
+						});
+						reload = true;
+					} else {
+						if (time && time === '00:00:00') {
+							this.click('#reviewNextLink');
+							this.wait(3000, runQuiz);
+						} else if (time) {
+							this.echo('Time til finished: ' + time);
+							this.wait(10000, detectQuiz);
+						}
+					}
+				} else if (time) {
+					this.withFrame(0, function() {
+						this.withFrame('scormdriver_content', function(){
+							this.evaluate(function(){
+								try {
+									for (var i = 0; i < 450; i++) player.setSlideIndex(i);
+								} catch (e) {}
+							});
 						});
 					});
-				})(i);
+					reload = true;
+				}
+			
+			if (reload) {
+				this.wait(8000, function(){
+					this.reload();
+					this.wait(8000, detectQuiz);
+				});
 			}
 		},
 		
 		/**
-		 * Process all products
+		 * Take the quiz
 		 * 
 		 * @returns void
 		 */
-		processProducts = function(){
-			var prodLinks = [];
-			casper
-				.start('http://www.tulsachain.com/asccustompages/htmlcataloga/')
-				.then(function(){
-					prodLinks = this.evaluate(function(){
-						var p = [];
-						__utils__.findAll('td[align="top"] a').map(function(a){
-							p.push({
-								href: a.getAttribute('href'),
-								title: a.innerText
-							});
-						});
-						return p;
+		runQuiz = function(){
+			if ( ! this.exists('table[class="qinput"]')) {
+				this.wait(8000, function(){
+					this.reload();
+					this.wait(8000, detectQuiz);
+				});
+			} else {
+				this.evaluate(function(){
+					[].map.call(document.querySelectorAll('table[class="qinput"]'), function(table) {
+						var 
+							radios = table.querySelectorAll(':scope input[type="radio"]'),
+							hidden = table.querySelectorAll(':scope input[type="hidden"]'),
+							answer = hidden && hidden.length ? parseInt(hidden[1].getAttribute('value')) : false;
+						console.log(hidden[1].getAttribute('value'));
+						if ( ! isNaN(answer)) {
+							answer--;
+							radios[answer].click();
+						} else {
+							console.error('Answer is not a number: ' + answer);
+						}
 					});
-					
-					for (var i = 0; i < prodLinks.length; i++) {
-						(function(index){
-							// TODO: Process each product link and scrape info
-						})(i);
-					}
-					
 				});
-			require('utils').dump(categories);
-			this.exit();
-		},
-		
-		/**
-		 * Processes a single product
-		 * 
-		 * @param object product
-		 * @returns void
-		 */
-		processProduct = function(product){
-			
-		},
-		
-		/**
-		 * Add a cateogry
-		 * 
-		 * @returns void
-		 */
-		addCat = function(cateogry) {
-			casper.click('button.create-inline');
-			casper.echo('Adding cat: ' + cateogry.title);
-			casper.sendKeys('#new-n1-name', cateogry.title);
-			casper.click('button.submit');
-			casper.waitForSelector('button.create-inline', function(){
-				this.echo('Added: ' + cateogry.title);
-				addCat(categories.shift());
-			});
-		},
-		
-		/**
-		 * Called after the process is compolete
-		 * 
-		 * @returns void
-		 */
-		complete = function(){
-			casper.start('http://173.236.74.246/admin.php')
-				.waitForSelector('input[name="login"]', function(){
-					this.fillSelectors('form', {
-						'input[name="login"]': 'david@hotcoffeydesign.com',
-						'input[name="password"]': 'HCD2014!@#'
-					}, true);
-				})
-				.waitForSelector('a[title="Categories"]', function(){
-					this.click('a[title="Categories"]');
-				}).waitForSelector('button.create-inline', function(){
-					addCat(categories.shift());
+
+				this.click('#eomsubmit');
+				this.wait(4000, function(){
+					this.click('input[type="submit"]');
+					this.wait(4000, detectQuiz);
 				});
-			
-			casper.run(function(){
-				this.exit();
-			});
+			}
 		};
-	
+		
 	// The first casperjs action
-	casper.start('http://tulsachain.com', process);
-	casper.run(processProducts);
+	casper.start('https://home.uceusa.com/Courses/LoggedOut.aspx', login);
+	casper.run(function(){
+		this.echo('All done?');
+	});
 	
 })(require('casper').create({
 	verbose: true,
